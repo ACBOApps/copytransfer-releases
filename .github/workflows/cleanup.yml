@@ -1,0 +1,19 @@
+# Αφαίρεση αρχείου από έκδοση: branch "cleanup/<tag>/<όνομα αρχείου>" σβήνει το αρχείο από το Release και μετά το branch.
+name: cleanup
+on:
+  push:
+    branches: ['cleanup/**']
+permissions:
+  contents: write
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          REST="${GITHUB_REF_NAME#cleanup/}"
+          TAG="${REST%%/*}"; FILE="${REST#*/}"
+          gh release delete-asset "$TAG" "$FILE" --repo "$GITHUB_REPOSITORY" -y
+          gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$GITHUB_REF_NAME"

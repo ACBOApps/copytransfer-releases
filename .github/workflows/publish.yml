@@ -1,0 +1,33 @@
+# Δημοσίευση έκδοσης: όταν ανέβει branch "upload/vX.Y.Z" με τα κομμάτια του Setup,
+# ενώνει το αρχείο, ελέγχει το SHA-256, δημιουργεί το Release και σβήνει το branch.
+name: publish
+on:
+  push:
+    branches: ['upload/**']
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ένωση και έλεγχος
+        run: |
+          set -euo pipefail
+          V="${GITHUB_REF_NAME#upload/v}"
+          cat release/CopyTransfer-$V.exe.part* > CopyTransfer-$V.exe
+          WANT=$(cat release/sha256.txt)
+          GOT=$(sha256sum CopyTransfer-$V.exe | cut -d' ' -f1)
+          [ "$WANT" = "$GOT" ] || { echo "SHA-256 mismatch"; exit 1; }
+          echo "V=$V" >> "$GITHUB_ENV"
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          FILES=("CopyTransfer-$V.exe")
+          # υπογεγραμμένο αρχείο έκδοσης (Ed25519) για τις αυτόματες ενημερώσεις και το ACBO Launcher
+          [ -f release/copytransfer-update.json ] && FILES+=(release/copytransfer-update.json)
+          gh release create "v$V" "${FILES[@]}" \
+            --repo "$GITHUB_REPOSITORY" --target main --title "CopyTransfer $V" --notes-file release/notes.txt --latest
+          git push origin --delete "$GITHUB_REF_NAME"
